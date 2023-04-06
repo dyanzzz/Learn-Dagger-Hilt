@@ -1,51 +1,93 @@
 package com.example.learnhilt.di.module
 
 import com.example.learnhilt.BuildConfig
-import com.example.learnhilt.data.api.ApiHelper
-import com.example.learnhilt.data.api.ApiHelperImpl
 import com.example.learnhilt.data.api.ApiService
+import com.example.learnhilt.ui.main.domain.MainRepository
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
-import dagger.hilt.android.components.ActivityComponent
+import dagger.hilt.components.SingletonComponent
+import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
-import retrofit2.converter.moshi.MoshiConverterFactory
-import javax.inject.Singleton
+import retrofit2.converter.gson.GsonConverterFactory
+import java.util.concurrent.TimeUnit
+import javax.inject.Named
 
 @Module
-@InstallIn(ActivityComponent::class)
+@InstallIn(SingletonComponent::class)
 class ApplicationModule {
     @Provides
-    fun provideBaseUrl() = BuildConfig.BASE_URL
+    @Named("BASE_URL")
+    fun provideWebAPI(): String = BuildConfig.BASE_URL
+
+    /*@Provides
+    @Named("KEY_API")
+    fun provideKeyAPI(): String = KEY_API
 
     @Provides
-    @Singleton
-    fun provideOkHttpClient() = if (BuildConfig.DEBUG) {
-        val loggingInterceptor = HttpLoggingInterceptor()
-        loggingInterceptor.setLevel(HttpLoggingInterceptor.Level.BODY)
-        OkHttpClient.Builder()
-            .addInterceptor(loggingInterceptor)
+    @Named("PAGE_SIZE")
+    fun providePageSize(): Int = PAGE_SIZE*/
+
+    @Provides
+    fun provideRetrofit(
+        @Named("BASE_URL") webAPI: String,
+    ): Retrofit {
+        val client = OkHttpClient
+            .Builder()
+            .addInterceptor(serviceHTTPClient())
+            .addInterceptor(httpLoggingInterceptor())
+            .readTimeout(25, TimeUnit.SECONDS)
+            .connectTimeout(25, TimeUnit.SECONDS)
             .build()
-    } else OkHttpClient
-        .Builder()
-        .build()
-
-    @Provides
-    @Singleton
-    fun provideRetrofit(okHttpClient: OkHttpClient, BASE_URL: String): Retrofit =
-        Retrofit.Builder()
-            .addConverterFactory(MoshiConverterFactory.create())
-            .baseUrl(BASE_URL)
-            .client(okHttpClient)
+        return Retrofit.Builder()
+            .baseUrl(webAPI)
+            .addConverterFactory(GsonConverterFactory.create())
+            .client(client)
             .build()
+    }
+
+    private fun serviceHTTPClient(): Interceptor {
+        return Interceptor { chain ->
+            val original = chain.request()
+            val requestUrl = original
+                .url
+                .newBuilder()
+                .build()
+
+            val requestBuilder = original.newBuilder().url(requestUrl)
+                .build()
+            return@Interceptor chain.proceed(requestBuilder)
+        }
+    }
+
+    private fun httpLoggingInterceptor(): HttpLoggingInterceptor {
+        val logging = HttpLoggingInterceptor()
+        logging.level = HttpLoggingInterceptor.Level.BODY
+        return logging
+    }
 
     @Provides
-    @Singleton
-    fun provideApiService(retrofit: Retrofit): ApiService = retrofit.create(ApiService::class.java)
+    fun provideGamesService(
+        retrofit: Retrofit
+    ): ApiService = retrofit.create(ApiService::class.java)
+
+    /*@Provides
+    fun provideGamesRepository(
+        gamesService: ApiService,
+        @Named("KEY_API") keyApi: String,
+        @Named("PAGE_SIZE") pageSize: Int,
+    ): GamesRepository = GamesRepositoryImpl(
+        gamesService = gamesService,
+        pageSize = pageSize,
+        apiKey = keyApi
+    )*/
 
     @Provides
-    @Singleton
-    fun provideApiHelper(apiHelper: ApiHelperImpl): ApiHelper = apiHelper
+    fun provideGamesRepository(
+        apiService: ApiService,
+    ): MainRepository = MainRepository(
+        apiHelper = apiService,
+    )
 }

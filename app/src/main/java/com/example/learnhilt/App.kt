@@ -1,9 +1,16 @@
 package com.example.learnhilt
 
-import android.app.Application
+import androidx.multidex.MultiDexApplication
 import dagger.hilt.android.HiltAndroidApp
 
 @HiltAndroidApp
-class App: Application() {
+class App: MultiDexApplication() {
+    override fun onCreate() {
+        super.onCreate()
 
+        if (BuildConfig.DEBUG) {
+            // https://ayusch.com/timber-for-android/
+
+        }
+    }
 }
